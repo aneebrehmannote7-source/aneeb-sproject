@@ -445,23 +445,67 @@ export default function DeliveryPayment() {
       navigate('/');
       return;
     }
-    setOrderData(JSON.parse(storedData));
+    try {
+      setOrderData(JSON.parse(storedData));
+    } catch {
+      navigate('/');
+    }
   }, [navigate]);
 
   useEffect(() => {
     if (timeLeft <= 0) return;
-    const timer = setInterval(() => setTimeLeft((t) => t - 1), 1000);
-    return () => clearInterval(timer);
-  }, [timeLeft]);
 
-  const calculateSubtotal = () =>
-    orderData?.cartItems.reduce((s, i) => s + i.price * i.quantity, 0) || 0;
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          navigate('/');
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [timeLeft, navigate]);
+
+  const handleCopy = (text: string, type: 'easypaisa' | 'bank') => {
+    navigator.clipboard.writeText(text);
+    setCopied(type);
+    setTimeout(() => setCopied(null), 2000);
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setError('Please select an image file');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setError('File size must be less than 5MB');
+      return;
+    }
+
+    setScreenshot(file);
+    setPreviewUrl(URL.createObjectURL(file));
+    setError(null);
+  };
+
+  const calculateSubtotal = () => {
+    if (!orderData) return 0;
+    return orderData.cartItems.reduce(
+      (sum, item) => sum + item.price * item.quantity,
+      0
+    );
+  };
 
   const calculateTotal = () => calculateSubtotal() + DELIVERY_CHARGE;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!orderData || !screenshot) return;
+    if (!screenshot || !orderData) return;
 
     setLoading(true);
     setError(null);
@@ -469,18 +513,23 @@ export default function DeliveryPayment() {
     try {
       const fileName = `delivery-${Date.now()}.jpg`;
 
-      await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('payment-proofs')
         .upload(fileName, screenshot);
+
+      if (uploadError) throw uploadError;
 
       const { data: urlData } = supabase.storage
         .from('payment-proofs')
         .getPublicUrl(fileName);
 
+      const paymentExpiresAt = new Date();
+      paymentExpiresAt.setMinutes(paymentExpiresAt.getMinutes() + 10);
+
       const subtotal = calculateSubtotal();
       const total = calculateTotal();
 
-      const { data, error } = await supabase
+      const { data, error: orderError } = await supabase
         .from('orders')
         .insert({
           name: orderData.formData.name,
@@ -490,23 +539,29 @@ export default function DeliveryPayment() {
           special_instructions: orderData.formData.specialInstructions,
           payment_method: 'online',
           payment_status: 'pending_verification',
+          payment_expires_at: paymentExpiresAt.toISOString(),
           payment_proof_url: urlData.publicUrl,
+          payment_proof_submitted_at: new Date().toISOString(),
           delivery_fee: DELIVERY_CHARGE,
           total_amount: total,
         })
         .select('id, order_token')
         .single();
 
-      if (error) throw error;
+      if (orderError || !data) throw orderError;
 
-      await supabase.from('order_items').insert(
-        orderData.cartItems.map((i) => ({
-          order_id: data.id,
-          product_name: i.name,
-          price: i.price,
-          quantity: i.quantity,
-        }))
-      );
+      const itemsPayload = orderData.cartItems.map((item) => ({
+        order_id: data.id,
+        product_name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+      }));
+
+      const { error: itemsError } = await supabase
+        .from('order_items')
+        .insert(itemsPayload);
+
+      if (itemsError) throw itemsError;
 
       setOrderToken(data.order_token);
 
@@ -517,7 +572,7 @@ export default function DeliveryPayment() {
         phone: orderData.formData.phone,
         address: orderData.formData.address,
         payment_method: 'online',
-      });
+      }).catch(console.error);
 
       localStorage.removeItem('delivery_order_data');
       setSuccess(true);
@@ -528,17 +583,40 @@ export default function DeliveryPayment() {
     }
   };
 
-  if (success) {
+  if (!orderData) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="bg-white p-6 rounded-lg text-center">
-          <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-3" />
-          <p className="font-bold">Order Token</p>
-          <p className="font-mono">{orderToken}</p>
+        <Loader className="animate-spin text-amber-600" />
+      </div>
+    );
+  }
+
+  if (success) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-3">
+        <div className="bg-white rounded-lg p-8 max-w-md w-full text-center">
+          <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-semibold mb-2">Payment Submitted</h2>
+          <p className="text-gray-600 mb-4">
+            Your payment proof has been received. We'll verify it shortly.
+          </p>
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+            <p className="text-sm text-gray-600 mb-1">Order Token:</p>
+            <p className="font-mono font-bold text-amber-900 text-lg">
+              {orderToken}
+            </p>
+          </div>
+          <button
+            onClick={() => navigate('/')}
+            className="w-full bg-amber-600 text-white py-3 rounded-lg font-semibold hover:bg-amber-700"
+          >
+            Back to Home
+          </button>
         </div>
       </div>
     );
   }
 
-  return null; // UI unchanged (already correct)
+  return null;
 }
+
