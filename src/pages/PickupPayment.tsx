@@ -62,6 +62,8 @@ export default function PickupPayment() {
         const paymentExpiresAt = new Date();
         paymentExpiresAt.setMinutes(paymentExpiresAt.getMinutes() + 10);
 
+        const total = calculateTotal();
+
         const { data, error: orderError } = await supabase
           .from('orders')
           .insert([
@@ -74,6 +76,8 @@ export default function PickupPayment() {
               payment_method: 'cash',
               payment_status: 'confirmed',
               payment_expires_at: paymentExpiresAt.toISOString(),
+              delivery_fee: 0,
+              total_amount: total,
             },
           ])
           .select('id, order_token')
