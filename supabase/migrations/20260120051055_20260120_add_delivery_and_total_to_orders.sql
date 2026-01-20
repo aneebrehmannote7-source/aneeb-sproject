@@ -19,14 +19,14 @@ DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.columns
-    WHERE table_name = 'orders' AND column_name = 'delivery_fee'
+    WHERE table_name = 'order_items' AND column_name = 'delivery_fee'
   ) THEN
     ALTER TABLE orders ADD COLUMN delivery_fee integer DEFAULT 0;
   END IF;
 
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.columns
-    WHERE table_name = 'orders' AND column_name = 'total_amount'
+    WHERE table_name = 'order_items' AND column_name = 'total_amount'
   ) THEN
     ALTER TABLE orders ADD COLUMN total_amount integer DEFAULT 0;
   END IF;
