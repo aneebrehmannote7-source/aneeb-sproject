@@ -12,6 +12,16 @@ interface OrderData {
     address: string;
     specialInstructions: string;
   };
+
+
+    pricing: {
+    deliveryFee: number;
+    subtotal: number;
+    totalAmount: number;
+  };
+
+
+  
   cartItems: Array<{
     id: string;
     name: string;
@@ -134,6 +144,10 @@ export default function DeliveryPayment() {
       const subtotal = calculateSubtotal();
       const total = calculateTotal();
 
+
+    
+
+
       const { data, error: orderError } = await supabase
         .from('orders')
         .insert([
@@ -148,12 +162,13 @@ export default function DeliveryPayment() {
             payment_expires_at: paymentExpiresAt.toISOString(),
             payment_proof_url: urlData.publicUrl,
             payment_proof_submitted_at: new Date().toISOString(),
-            delivery_fee: DELIVERY_CHARGE,
-            total_amount: total,
+         
+               delivery_fee: DELIVERY_CHARGE,
+      total_amount: total,
           },
         ])
-        .select('id, order_token')
-        .maybeSingle();
+   const total = calculateTotal();
+
 
       if (orderError || !data) {
         setError('Failed to create order. Please try again.');
