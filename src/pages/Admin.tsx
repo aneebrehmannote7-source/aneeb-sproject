@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { AlertCircle, CheckCircle, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import OrdersTable from '../components/OrdersTable';
 
 export default function Admin() {
+  const [activeTab, setActiveTab] = useState<'settings' | 'orders'>('orders');
   const [resendApiKey, setResendApiKey] = useState('');
   const [showKey, setShowKey] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -98,12 +100,43 @@ export default function Admin() {
 
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-2xl mx-auto">
-        <div className="bg-white rounded-lg shadow-md p-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Admin Settings</h1>
-          <p className="text-gray-600 mb-8">Configure your application settings</p>
+      <div className="max-w-6xl mx-auto">
+        <div className="bg-white rounded-lg shadow-md overflow-hidden">
+          <div className="px-8 py-6 border-b border-gray-200">
+            <h1 className="text-3xl font-bold text-gray-900 mb-4">Admin Panel</h1>
+            <div className="flex gap-4">
+              <button
+                onClick={() => setActiveTab('orders')}
+                className={`px-4 py-2 font-medium rounded-lg transition-colors ${
+                  activeTab === 'orders'
+                    ? 'bg-amber-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Orders
+              </button>
+              <button
+                onClick={() => setActiveTab('settings')}
+                className={`px-4 py-2 font-medium rounded-lg transition-colors ${
+                  activeTab === 'settings'
+                    ? 'bg-amber-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Settings
+              </button>
+            </div>
+          </div>
 
-          <form onSubmit={handleSave} className="space-y-6">
+          <div className="p-8">
+            {activeTab === 'orders' && <OrdersTable />}
+
+            {activeTab === 'settings' && (
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Settings</h2>
+                <p className="text-gray-600 mb-8">Configure your application settings</p>
+
+                <form onSubmit={handleSave} className="space-y-6">
             {message && (
               <div
                 className={`flex items-center gap-3 p-4 rounded-lg ${
@@ -174,6 +207,9 @@ export default function Admin() {
               {loading ? 'Saving...' : 'Save Settings'}
             </button>
           </form>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
